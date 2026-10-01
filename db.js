@@ -13,9 +13,9 @@ async function initPostgres(){
   const r=await pool.query('SELECT payload FROM alr_state WHERE id=1');
   if(r.rows[0]?.payload)db=r.rows[0].payload;else{db=loadLocal();await pool.query('INSERT INTO alr_state(id,payload) VALUES(1,$1)',[db])}
   console.log('Database: PostgreSQL');
- }catch(e){console.error('PostgreSQL unavailable:',e.message);if(process.env.NODE_ENV==='production')throw e;pool=null;db=loadLocal()}
+ }catch(e){console.error('PostgreSQL unavailable:',e.message);if(process.env.NODE_ENV==='production'||process.env.REQUIRE_PERSISTENCE==='true')throw e;pool=null;db=loadLocal()}
 }
-function init(){ready=initPostgres();return ready.then(()=>{if(!db)db=loadLocal();return db})}
+function init(){ready=initPostgres();return ready.then(()=>{if(!db)db=loadLocal();const required=process.env.NODE_ENV==='production'||process.env.REQUIRE_PERSISTENCE==='true';if(required&&!pool)throw new Error('Persistent PostgreSQL storage is required but DATABASE_URL is not configured');console.log(`Storage ready: ${pool?'postgresql':'local'}`);return db})}
 function get(){if(!db)db=loadLocal();return db}
 function save(x){db=x;saveLocal(x);if(pool)ready=ready.then(()=>pool.query('UPDATE alr_state SET payload=$1,updated_at=now() WHERE id=1',[x]).catch(e=>console.error('PostgreSQL save failed:',e.message)))}
 async function status(){await ready;if(pool){try{await pool.query('SELECT 1');return{type:'postgresql',ok:true}}catch(e){return{type:'postgresql',ok:false,error:e.message}}}return{type:'local',ok:true}}
