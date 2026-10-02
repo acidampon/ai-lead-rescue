@@ -12,7 +12,9 @@ services:
       - key: DATABASE_SSL
         value: "true"
       - key: DATABASE_URL
-        sync: false
+        fromDatabase:
+          name: veridexa-db
+          property: connectionString
       - key: CORS_ORIGIN
         sync: false
       - key: RESEND_API_KEY
