@@ -1,31 +1,15 @@
 services:
   - type: web
     name: ai-lead-rescue
-    runtime: docker
+    runtime: node
     plan: free
-    healthCheckPath: /api/health
+    region: oregon
+    repo: https://github.com/acidampon/ai-lead-rescue
+    branch: main
+    buildCommand: npm install
+    startCommand: npm start
     envVars:
-      - key: NODE_ENV
-        value: production
-      - key: AUTH_REQUIRED
-        value: "true"
-      - key: DATABASE_SSL
-        value: "true"
       - key: DATABASE_URL
         fromDatabase:
           name: veridexa-db
           property: connectionString
-      - key: CORS_ORIGIN
-        sync: false
-      - key: RESEND_API_KEY
-        sync: false
-      - key: EMAIL_FROM
-        sync: false
-      - key: OPENAI_API_KEY
-        sync: false
-      - key: OPENAI_MODEL
-        value: gpt-4o-mini
-      - key: OPENAI_BASE_URL
-        value: https://api.openai.com
-      - key: DATABASE_POOL_SIZE
-        value: "10"
