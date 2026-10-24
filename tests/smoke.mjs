@@ -1,10 +1,11 @@
 import {spawn} from 'node:child_process';
 import {once} from 'node:events';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 const root=path.resolve(new URL('..',import.meta.url).pathname);
-const port=3137;const data=path.join(root,'data.json');if(fs.existsSync(data))fs.unlinkSync(data);
-const childEnv={...process.env,PORT:String(port),NODE_ENV:'development',AUTH_REQUIRED:'true'};
+const port=3137;const tempDir=fs.mkdtempSync(path.join(os.tmpdir(),'ai-lead-rescue-smoke-'));const data=path.join(tempDir,'data.json');
+const childEnv={...process.env,PORT:String(port),NODE_ENV:'development',AUTH_REQUIRED:'true',DATA_PATH:data};
 delete childEnv.DATABASE_URL;
 const child=spawn(process.execPath,['server.js'],{cwd:root,env:childEnv,stdio:['ignore','pipe','pipe']});
 let logs='';child.stdout.on('data',d=>logs+=d);child.stderr.on('data',d=>logs+=d);
@@ -21,4 +22,4 @@ const originalWorkspace=leads.body[0].workspaceId;const patch=await req('/api/le
 const badClose=await req('/api/leads/'+lead.body.leadId+'/close',{method:'POST',headers:{'content-type':'application/json',cookie},body:JSON.stringify({status:'Admin'})});if(badClose.r.status!==400)throw new Error('close validation failed');
 const reply=await req('/api/public/reply',{method:'POST',headers:{'content-type':'application/json','x-intake-token':intake},body:JSON.stringify({leadId:lead.body.leadId,message:'Thanks, I will get back to you.'})});if(reply.r.status!==200||!reply.body.automationStopped)throw new Error('reply failed');
 const ready=await req('/api/ready');if(!ready.body.ready)throw new Error('readiness failed');console.log('SMOKE PASS: health, auth, workspace, intake, idempotency, reply, readiness');
-}finally{child.kill('SIGTERM');await once(child,'exit').catch(()=>{});if(fs.existsSync(data))fs.unlinkSync(data)}
+}finally{child.kill('SIGTERM');await once(child,'exit').catch(()=>{});fs.rmSync(tempDir,{recursive:true,force:true})}
