@@ -4,7 +4,9 @@ import fs from 'node:fs';
 import path from 'node:path';
 const root=path.resolve(new URL('..',import.meta.url).pathname);
 const port=3137;const data=path.join(root,'data.json');if(fs.existsSync(data))fs.unlinkSync(data);
-const child=spawn(process.execPath,['server.js'],{cwd:root,env:{...process.env,PORT:String(port),NODE_ENV:'development',AUTH_REQUIRED:'true'},stdio:['ignore','pipe','pipe']});
+const childEnv={...process.env,PORT:String(port),NODE_ENV:'development',AUTH_REQUIRED:'true'};
+delete childEnv.DATABASE_URL;
+const child=spawn(process.execPath,['server.js'],{cwd:root,env:childEnv,stdio:['ignore','pipe','pipe']});
 let logs='';child.stdout.on('data',d=>logs+=d);child.stderr.on('data',d=>logs+=d);
 const base=`http://127.0.0.1:${port}`;
 async function wait(){for(let i=0;i<40;i++){try{const r=await fetch(base+'/api/health');if(r.ok)return}catch{}await new Promise(r=>setTimeout(r,100))}throw new Error('server did not start\n'+logs)}
