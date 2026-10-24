@@ -6,7 +6,7 @@ services:
     region: oregon
     repo: https://github.com/acidampon/ai-lead-rescue
     branch: main
-    buildCommand: npm install
+    buildCommand: npm install && npm run check && npm run smoke
     startCommand: npm start
     healthCheckPath: /api/ready
     envVars:
