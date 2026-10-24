@@ -7,6 +7,6 @@
     "check": "node --check server.js && node --check db.js",
     "smoke": "node tests/smoke.mjs"
   },
-  "engines": {"node": ">=18"},
-  "dependencies": {"pg": "^8.16.3"}
+  "engines": { "node": "22.x" },
+  "dependencies": { "pg": "^8.16.3" }
 }
