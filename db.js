@@ -1,10 +1,10 @@
 const fs=require('fs');
 const path=require('path');
-const DATA=path.join(__dirname,'data.json');
+const DATA=path.resolve(process.env.DATA_PATH || path.join(__dirname,'data.json'));
 let pool=null,ready=Promise.resolve(),db=null;
 function empty(){return {leads:[],settings:{},settingsByWorkspace:{},events:[],workspaces:[],users:[],sessions:[]}}
-function loadLocal(){if(!fs.existsSync(DATA))fs.writeFileSync(DATA,JSON.stringify(empty(),null,2));return JSON.parse(fs.readFileSync(DATA,'utf8'))}
-function saveLocal(x){fs.writeFileSync(DATA,JSON.stringify(x,null,2))}
+function loadLocal(){if(!fs.existsSync(DATA)){fs.mkdirSync(path.dirname(DATA),{recursive:true});fs.writeFileSync(DATA,JSON.stringify(empty(),null,2))}return JSON.parse(fs.readFileSync(DATA,'utf8'))}
+function saveLocal(x){fs.mkdirSync(path.dirname(DATA),{recursive:true});fs.writeFileSync(DATA,JSON.stringify(x,null,2))}
 async function initPostgres(){
  if(!process.env.DATABASE_URL)return;
  try{
