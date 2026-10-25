@@ -17,7 +17,7 @@ async function initPostgres(){
 }
 function init(){ready=initPostgres();return ready.then(()=>{if(!db)db=loadLocal();const required=process.env.NODE_ENV==='production'||process.env.REQUIRE_PERSISTENCE==='true';if(required&&!pool)throw new Error('Persistent PostgreSQL storage is required but DATABASE_URL is not configured');console.log(`Storage ready: ${pool?'postgresql':'local'}`);return db})}
 function get(){if(!db)db=loadLocal();return db}
-async function save(x){db=x;saveLocal(x);if(pool){await ready;const snapshot=JSON.stringify(x);const write=saveQueue.catch(()=>{}).then(()=>pool.query('UPDATE alr_state SET payload=$1::jsonb,updated_at=now() WHERE id=1',[snapshot]));saveQueue=write;await write}}
+async function save(x){db=x;if(!pool){saveLocal(x);return}await ready;const snapshot=JSON.stringify(x);const write=saveQueue.catch(()=>{}).then(()=>pool.query('UPDATE alr_state SET payload=$1::jsonb,updated_at=now() WHERE id=1',[snapshot]));saveQueue=write;await write}
 async function status(){await ready;try{await saveQueue;if(pool){await pool.query('SELECT 1');return{type:'postgresql',ok:true}}return{type:'local',ok:true}}catch(e){return{type:pool?'postgresql':'local',ok:false,error:e.message}}}
 async function close(){await ready;await saveQueue;if(pool)await pool.end()}
 module.exports={init,get,save,close,status}
