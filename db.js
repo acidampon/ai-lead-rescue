@@ -57,6 +57,7 @@ async function exportDatabaseSnapshot(){
   ORDER BY schemaname,viewname
  `);
  let sequences=[];
+ await client.query('SAVEPOINT sequence_metadata');
  try{
   const result=await client.query(`
    SELECT schemaname AS schema,sequencename AS name,data_type,start_value,min_value,max_value,increment_by,cycle,last_value
@@ -65,7 +66,12 @@ async function exportDatabaseSnapshot(){
    ORDER BY schemaname,sequencename
   `);
   sequences=result.rows;
- }catch(error){sequences=[{warning:'Sequence metadata could not be read: '+error.message}]}
+  await client.query('RELEASE SAVEPOINT sequence_metadata');
+ }catch(error){
+  await client.query('ROLLBACK TO SAVEPOINT sequence_metadata');
+  await client.query('RELEASE SAVEPOINT sequence_metadata');
+  sequences=[{warning:'Sequence metadata could not be read: '+error.message}];
+ }
  const snapshot={
   format:'ai-lead-rescue-postgres-logical-backup-v1',
   exportedAt:metadata.rows[0].exported_at,
