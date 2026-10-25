@@ -20,4 +20,57 @@ function get(){if(!db)db=loadLocal();return db}
 async function save(x){db=x;if(!pool){saveLocal(x);return}await ready;const snapshot=JSON.stringify(x);const write=saveQueue.catch(()=>{}).then(()=>pool.query('UPDATE alr_state SET payload=$1::jsonb,updated_at=now() WHERE id=1',[snapshot]));saveQueue=write;await write}
 async function status(){await ready;try{await saveQueue;if(pool){await pool.query('SELECT 1');return{type:'postgresql',ok:true}}return{type:'local',ok:true}}catch(e){return{type:pool?'postgresql':'local',ok:false,error:e.message}}}
 async function close(){await ready;await saveQueue;if(pool)await pool.end()}
-module.exports={init,get,save,close,status}
+
+function quoteIdentifier(value){return '"'+String(value).replace(/"/g,'""')+'"'}
+async function exportDatabaseSnapshot(){
+ await ready;await saveQueue;
+ if(!pool)throw new Error('PostgreSQL storage is not active; a shared-database export is unavailable in local mode.');
+ const metadata=await pool.query('SELECT current_database() AS database_name,current_user AS database_user,current_timestamp AS exported_at');
+ const tableList=await pool.query(`
+  SELECT table_schema,table_name FROM information_schema.tables
+  WHERE table_type='BASE TABLE'
+   AND table_schema NOT IN ('pg_catalog','information_schema')
+   AND table_schema NOT LIKE 'pg_toast%'
+  ORDER BY table_schema,table_name
+ `);
+ const tables=[];
+ for(const item of tableList.rows){
+  const schema=item.table_schema,table=item.table_name;
+  const relation=quoteIdentifier(schema)+'.'+quoteIdentifier(table);
+  const [columns,constraints,indexes,triggers,rows]=await Promise.all([
+   pool.query('SELECT column_name,data_type,udt_name,is_nullable,column_default,ordinal_position FROM information_schema.columns WHERE table_schema=$1 AND table_name=$2 ORDER BY ordinal_position',[schema,table]),
+   pool.query('SELECT c.conname AS name,c.contype AS type,pg_get_constraintdef(c.oid,true) AS definition FROM pg_constraint c JOIN pg_class r ON r.oid=c.conrelid JOIN pg_namespace n ON n.oid=r.relnamespace WHERE n.nspname=$1 AND r.relname=$2 ORDER BY c.conname',[schema,table]),
+   pool.query('SELECT indexname,indexdef FROM pg_indexes WHERE schemaname=$1 AND tablename=$2 ORDER BY indexname',[schema,table]),
+   pool.query('SELECT t.tgname AS name,pg_get_triggerdef(t.oid,true) AS definition FROM pg_trigger t JOIN pg_class r ON r.oid=t.tgrelid JOIN pg_namespace n ON n.oid=r.relnamespace WHERE NOT t.tgisinternal AND n.nspname=$1 AND r.relname=$2 ORDER BY t.tgname',[schema,table]),
+   pool.query(`SELECT COALESCE(json_agg(to_jsonb(t)),'[]'::json) AS rows FROM ${relation} t`)
+  ]);
+  const data=rows.rows[0]?.rows||[];
+  tables.push({schema,name:table,rowCount:Array.isArray(data)?data.length:0,columns:columns.rows,constraints:constraints.rows,indexes:indexes.rows,triggers:triggers.rows,rows:data});
+ }
+ const views=await pool.query(`
+  SELECT schemaname AS schema,viewname AS name,definition FROM pg_views
+  WHERE schemaname NOT IN ('pg_catalog','information_schema')
+   AND schemaname NOT LIKE 'pg_toast%'
+  ORDER BY schemaname,viewname
+ `);
+ let sequences=[];
+ try{
+  const result=await pool.query(`
+   SELECT schemaname AS schema,sequencename AS name,data_type,start_value,min_value,max_value,increment_by,cycle,last_value
+   FROM pg_sequences
+   WHERE schemaname NOT IN ('pg_catalog','information_schema')
+   ORDER BY schemaname,sequencename
+  `);
+  sequences=result.rows;
+ }catch(error){sequences=[{warning:'Sequence metadata could not be read: '+error.message}]}
+ return{
+  format:'ai-lead-rescue-postgres-logical-backup-v1',
+  exportedAt:metadata.rows[0].exported_at,
+  databaseName:metadata.rows[0].database_name,
+  databaseUser:metadata.rows[0].database_user,
+  tableCount:tables.length,
+  totalRows:tables.reduce((sum,table)=>sum+table.rowCount,0),
+  tables,views:views.rows,sequences
+ };
+}
+module.exports={init,get,save,close,status,exportDatabaseSnapshot}
