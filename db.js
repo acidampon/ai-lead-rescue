@@ -25,8 +25,11 @@ function quoteIdentifier(value){return '"'+String(value).replace(/"/g,'""')+'"'}
 async function exportDatabaseSnapshot(){
  await ready;await saveQueue;
  if(!pool)throw new Error('PostgreSQL storage is not active; a shared-database export is unavailable in local mode.');
- const metadata=await pool.query('SELECT current_database() AS database_name,current_user AS database_user,current_timestamp AS exported_at');
- const tableList=await pool.query(`
+ const client=await pool.connect();
+ try{
+ await client.query('BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY');
+ const metadata=await client.query('SELECT current_database() AS database_name,current_user AS database_user,current_timestamp AS exported_at');
+ const tableList=await client.query(`
   SELECT table_schema,table_name FROM information_schema.tables
   WHERE table_type='BASE TABLE'
    AND table_schema NOT IN ('pg_catalog','information_schema')
@@ -47,7 +50,7 @@ async function exportDatabaseSnapshot(){
   const data=rows.rows[0]?.rows||[];
   tables.push({schema,name:table,rowCount:Array.isArray(data)?data.length:0,columns:columns.rows,constraints:constraints.rows,indexes:indexes.rows,triggers:triggers.rows,rows:data});
  }
- const views=await pool.query(`
+ const views=await client.query(`
   SELECT schemaname AS schema,viewname AS name,definition FROM pg_views
   WHERE schemaname NOT IN ('pg_catalog','information_schema')
    AND schemaname NOT LIKE 'pg_toast%'
@@ -55,7 +58,7 @@ async function exportDatabaseSnapshot(){
  `);
  let sequences=[];
  try{
-  const result=await pool.query(`
+  const result=await client.query(`
    SELECT schemaname AS schema,sequencename AS name,data_type,start_value,min_value,max_value,increment_by,cycle,last_value
    FROM pg_sequences
    WHERE schemaname NOT IN ('pg_catalog','information_schema')
@@ -63,7 +66,7 @@ async function exportDatabaseSnapshot(){
   `);
   sequences=result.rows;
  }catch(error){sequences=[{warning:'Sequence metadata could not be read: '+error.message}]}
- return{
+ const snapshot={
   format:'ai-lead-rescue-postgres-logical-backup-v1',
   exportedAt:metadata.rows[0].exported_at,
   databaseName:metadata.rows[0].database_name,
@@ -72,5 +75,11 @@ async function exportDatabaseSnapshot(){
   totalRows:tables.reduce((sum,table)=>sum+table.rowCount,0),
   tables,views:views.rows,sequences
  };
+ await client.query('COMMIT');
+ return snapshot;
+ }catch(error){
+  await client.query('ROLLBACK').catch(()=>{});
+  throw error;
+ }finally{client.release()}
 }
 module.exports={init,get,save,close,status,exportDatabaseSnapshot}
