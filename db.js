@@ -41,11 +41,11 @@ async function exportDatabaseSnapshot(){
   const schema=item.table_schema,table=item.table_name;
   const relation=quoteIdentifier(schema)+'.'+quoteIdentifier(table);
   const [columns,constraints,indexes,triggers,rows]=await Promise.all([
-   pool.query('SELECT column_name,data_type,udt_name,is_nullable,column_default,ordinal_position FROM information_schema.columns WHERE table_schema=$1 AND table_name=$2 ORDER BY ordinal_position',[schema,table]),
-   pool.query('SELECT c.conname AS name,c.contype AS type,pg_get_constraintdef(c.oid,true) AS definition FROM pg_constraint c JOIN pg_class r ON r.oid=c.conrelid JOIN pg_namespace n ON n.oid=r.relnamespace WHERE n.nspname=$1 AND r.relname=$2 ORDER BY c.conname',[schema,table]),
-   pool.query('SELECT indexname,indexdef FROM pg_indexes WHERE schemaname=$1 AND tablename=$2 ORDER BY indexname',[schema,table]),
-   pool.query('SELECT t.tgname AS name,pg_get_triggerdef(t.oid,true) AS definition FROM pg_trigger t JOIN pg_class r ON r.oid=t.tgrelid JOIN pg_namespace n ON n.oid=r.relnamespace WHERE NOT t.tgisinternal AND n.nspname=$1 AND r.relname=$2 ORDER BY t.tgname',[schema,table]),
-   pool.query(`SELECT COALESCE(json_agg(to_jsonb(t)),'[]'::json) AS rows FROM ${relation} t`)
+   client.query('SELECT column_name,data_type,udt_name,is_nullable,column_default,ordinal_position FROM information_schema.columns WHERE table_schema=$1 AND table_name=$2 ORDER BY ordinal_position',[schema,table]),
+   client.query('SELECT c.conname AS name,c.contype AS type,pg_get_constraintdef(c.oid,true) AS definition FROM pg_constraint c JOIN pg_class r ON r.oid=c.conrelid JOIN pg_namespace n ON n.oid=r.relnamespace WHERE n.nspname=$1 AND r.relname=$2 ORDER BY c.conname',[schema,table]),
+   client.query('SELECT indexname,indexdef FROM pg_indexes WHERE schemaname=$1 AND tablename=$2 ORDER BY indexname',[schema,table]),
+   client.query('SELECT t.tgname AS name,pg_get_triggerdef(t.oid,true) AS definition FROM pg_trigger t JOIN pg_class r ON r.oid=t.tgrelid JOIN pg_namespace n ON n.oid=r.relnamespace WHERE NOT t.tgisinternal AND n.nspname=$1 AND r.relname=$2 ORDER BY t.tgname',[schema,table]),
+   client.query(`SELECT COALESCE(json_agg(to_jsonb(t)),'[]'::json) AS rows FROM ${relation} t`)
   ]);
   const data=rows.rows[0]?.rows||[];
   tables.push({schema,name:table,rowCount:Array.isArray(data)?data.length:0,columns:columns.rows,constraints:constraints.rows,indexes:indexes.rows,triggers:triggers.rows,rows:data});
@@ -72,6 +72,28 @@ async function exportDatabaseSnapshot(){
   await client.query('RELEASE SAVEPOINT sequence_metadata');
   sequences=[{warning:'Sequence metadata could not be read: '+error.message}];
  }
+ const functions=await client.query(`
+  SELECT n.nspname AS schema,p.proname AS name,pg_get_function_identity_arguments(p.oid) AS arguments,pg_get_functiondef(p.oid) AS definition
+  FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace
+  WHERE n.nspname NOT IN ('pg_catalog','information_schema')
+    AND n.nspname NOT LIKE 'pg_toast%'
+    AND p.prokind IN ('f','p')
+  ORDER BY n.nspname,p.proname
+ `);
+ const policies=await client.query(`
+  SELECT schemaname AS schema,tablename AS table,policyname,permissive,roles,cmd,qual,with_check
+  FROM pg_policies
+  WHERE schemaname NOT IN ('pg_catalog','information_schema')
+    AND schemaname NOT LIKE 'pg_toast%'
+  ORDER BY schemaname,tablename,policyname
+ `);
+ const tableSecurity=await client.query(`
+  SELECT n.nspname AS schema,c.relname AS table,c.relrowsecurity AS row_level_security,c.relforcerowsecurity AS force_row_level_security
+  FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace
+  WHERE c.relkind='r' AND n.nspname NOT IN ('pg_catalog','information_schema')
+    AND n.nspname NOT LIKE 'pg_toast%'
+  ORDER BY n.nspname,c.relname
+ `);
  const snapshot={
   format:'ai-lead-rescue-postgres-logical-backup-v1',
   exportedAt:metadata.rows[0].exported_at,
@@ -79,7 +101,7 @@ async function exportDatabaseSnapshot(){
   databaseUser:metadata.rows[0].database_user,
   tableCount:tables.length,
   totalRows:tables.reduce((sum,table)=>sum+table.rowCount,0),
-  tables,views:views.rows,sequences
+  tables,views:views.rows,sequences,functions:functions.rows,policies:policies.rows,tableSecurity:tableSecurity.rows
  };
  await client.query('COMMIT');
  return snapshot;
