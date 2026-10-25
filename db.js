@@ -111,6 +111,7 @@ async function exportDatabaseSnapshot(){
   exportedAt:metadata.rows[0].exported_at,
   databaseName:metadata.rows[0].database_name,
   databaseUser:metadata.rows[0].database_user,
+  snapshotScope:'Logical snapshot of application-visible schemas and objects; excludes PostgreSQL cluster roles, grants, extensions, server configuration, and physical storage state.',
   tableCount:tables.length,
   totalRows:tables.reduce((sum,table)=>sum+table.rowCount,0),
   tables,views:views.rows,sequences,functions:functions.rows,policies:policies.rows,customTypes:customTypes.rows,tableSecurity:tableSecurity.rows
