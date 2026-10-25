@@ -10,6 +10,10 @@ if (!process.env.DATABASE_URL) {
   console.error("DATABASE_URL must point to a separate, empty recovery database.");
   process.exit(2);
 }
+if (process.env.RESTORE_CONFIRM_TARGET !== "EMPTY_RECOVERY_DATABASE") {
+  console.error("Set RESTORE_CONFIRM_TARGET=EMPTY_RECOVERY_DATABASE only after confirming this is a separate recovery database.");
+  process.exit(2);
+}
 
 const snapshot = JSON.parse(fs.readFileSync(file, "utf8"));
 if (snapshot?.format !== "ai-lead-rescue-postgres-logical-backup-v1") {
@@ -37,6 +41,10 @@ await client.connect();
 try {
   await client.query("BEGIN");
   await client.query("CREATE TABLE IF NOT EXISTS public.alr_state (id integer PRIMARY KEY CHECK (id = 1), payload jsonb NOT NULL, updated_at timestamptz NOT NULL DEFAULT now())");
+  const otherTables = await client.query("SELECT count(*)::int AS count FROM information_schema.tables WHERE table_type = 'BASE TABLE' AND table_schema NOT IN ('pg_catalog', 'information_schema') AND table_schema NOT LIKE 'pg_toast%' AND NOT (table_schema = 'public' AND table_name = 'alr_state')");
+  if (otherTables.rows[0].count !== 0) {
+    throw new Error("Target database contains other application tables. No data was changed; use a new empty recovery database.");
+  }
   const existing = await client.query("SELECT count(*)::int AS count FROM public.alr_state");
   if (existing.rows[0].count !== 0) {
     throw new Error("Target public.alr_state is not empty. No data was changed; use a new recovery database.");
