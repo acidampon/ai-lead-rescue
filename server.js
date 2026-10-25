@@ -39,6 +39,9 @@ if(req.method==='GET'&&url.pathname==='/api/ready'){const ds=await storage.statu
 if(req.method==='GET'&&url.pathname==='/admin/database-backup'){secureHeaders(res);res.setHeader('Cache-Control','no-store');res.setHeader('Content-Security-Policy',"default-src 'none'; connect-src 'self'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'");res.writeHead(200,{'Content-Type':'text/html; charset=utf-8'});return res.end(fs.readFileSync(path.join(PUBLIC,'database-backup.html')))}
 if(req.method==='GET'&&url.pathname==='/api/admin/database-export'){
  const expected=String(process.env.ALR_BACKUP_TOKEN||'');
+ const expirySetting=String(process.env.ALR_BACKUP_TOKEN_EXPIRES_AT||'');
+ const expiry=expirySetting?Date.parse(expirySetting):NaN;
+ if(expirySetting&&(!Number.isFinite(expiry)||Date.now()>=expiry))return json(res,410,{error:'Backup token expired or misconfigured.'});
  const auth=String(req.headers.authorization||'');
  const supplied=auth.match(/^Bearer\s+(.+)$/i)?.[1]||'';
  if(!expected)return json(res,503,{error:'Database export is not enabled.'});
