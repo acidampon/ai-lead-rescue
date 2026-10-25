@@ -5,7 +5,7 @@
   "scripts": {
     "prestart": "npm run check",
     "start": "node server.js",
-    "check": "node --check server.js && node --check db.js",
+    "check": "node --check server.js && node --check db.js && node --check scripts/restore-alr-state-snapshot.mjs",
     "smoke": "node tests/smoke.mjs"
   },
   "engines": { "node": "22.x" },
