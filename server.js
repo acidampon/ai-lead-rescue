@@ -39,7 +39,7 @@ if(req.method==='GET'&&url.pathname==='/api/ready'){const ds=await storage.statu
 if(req.method==='GET'&&url.pathname==='/api/admin/database-export'){
  const expected=String(process.env.ALR_BACKUP_TOKEN||'');
  const auth=String(req.headers.authorization||'');
- const supplied=auth.startsWith('Bearer ')?auth.slice(7):String(url.searchParams.get('token')||'');
+ const supplied=auth.match(/^Bearer\s+(.+)$/i)?.[1]||'';
  if(!expected)return json(res,503,{error:'Database export is not enabled.'});
  if(!supplied||Buffer.byteLength(supplied)!==Buffer.byteLength(expected)||!crypto.timingSafeEqual(Buffer.from(supplied),Buffer.from(expected)))return json(res,401,{error:'Invalid backup token.'});
  if(!rateLimit('database-export:'+clientKey(req),3,3600000))return json(res,429,{error:'Backup rate limit reached. Try again later.'});
