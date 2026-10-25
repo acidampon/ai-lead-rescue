@@ -87,6 +87,18 @@ async function exportDatabaseSnapshot(){
     AND schemaname NOT LIKE 'pg_toast%'
   ORDER BY schemaname,tablename,policyname
  `);
+ const customTypes=await client.query(`
+  SELECT n.nspname AS schema,t.typname AS name,t.typtype AS type,
+   CASE WHEN t.typtype='e' THEN array_agg(e.enumlabel ORDER BY e.enumsortorder) END AS enum_values,
+   CASE WHEN t.typtype='d' THEN format_type(t.typbasetype,NULL) END AS base_type
+  FROM pg_type t JOIN pg_namespace n ON n.oid=t.typnamespace
+  LEFT JOIN pg_enum e ON e.enumtypid=t.oid
+  WHERE n.nspname NOT IN ('pg_catalog','information_schema')
+    AND n.nspname NOT LIKE 'pg_toast%'
+    AND t.typtype IN ('e','d')
+  GROUP BY n.nspname,t.typname,t.typtype,t.typbasetype
+  ORDER BY n.nspname,t.typname
+ `);
  const tableSecurity=await client.query(`
   SELECT n.nspname AS schema,c.relname AS table,c.relrowsecurity AS row_level_security,c.relforcerowsecurity AS force_row_level_security
   FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace
@@ -101,7 +113,7 @@ async function exportDatabaseSnapshot(){
   databaseUser:metadata.rows[0].database_user,
   tableCount:tables.length,
   totalRows:tables.reduce((sum,table)=>sum+table.rowCount,0),
-  tables,views:views.rows,sequences,functions:functions.rows,policies:policies.rows,tableSecurity:tableSecurity.rows
+  tables,views:views.rows,sequences,functions:functions.rows,policies:policies.rows,customTypes:customTypes.rows,tableSecurity:tableSecurity.rows
  };
  await client.query('COMMIT');
  return snapshot;
