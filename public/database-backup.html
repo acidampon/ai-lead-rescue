@@ -51,15 +51,20 @@ form.addEventListener('submit',async event=>{
    throw new Error(message);
   }
   const blob=await response.blob();
-  if(!blob.size)throw new Error('The server returned an empty backup.');
+  if(!blob.size)throw new Error('The server returned an empty snapshot.');
+  let checksum='unavailable in this browser';
+  try{
+   const digest=await crypto.subtle.digest('SHA-256',await blob.arrayBuffer());
+   checksum=Array.from(new Uint8Array(digest)).map(byte=>byte.toString(16).padStart(2,'0')).join('');
+  }catch{}
   const disposition=response.headers.get('Content-Disposition')||'';
   const match=disposition.match(/filename="?([^";]+)"?/i);
-  const filename=match?match[1]:'database-backup.json';
+  const filename=match?match[1]:'database-snapshot.json';
   const objectUrl=URL.createObjectURL(blob);
   const link=document.createElement('a');
   link.href=objectUrl;link.download=filename;document.body.appendChild(link);link.click();link.remove();
   setTimeout(()=>URL.revokeObjectURL(objectUrl),30000);
-  status.textContent='Snapshot download started ('+blob.size.toLocaleString()+' bytes). Confirm the file exists, then store a second copy somewhere safe. This page cannot verify your device saved the file.';
+  status.textContent='Snapshot download started ('+blob.size.toLocaleString()+' bytes). SHA-256: '+checksum+'. Confirm the file exists, then store a second copy somewhere safe. This page cannot verify your device saved the file.';
  }catch(error){status.textContent='Snapshot not confirmed: '+(error&&error.message?error.message:'request failed');}
  finally{input.value='';button.disabled=false;}
 });
