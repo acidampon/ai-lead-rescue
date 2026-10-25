@@ -1,7 +1,7 @@
 const fs=require('fs');
 const path=require('path');
 const DATA=path.resolve(process.env.DATA_PATH || path.join(__dirname,'data.json'));
-let pool=null,ready=Promise.resolve(),db=null;
+let pool=null,ready=Promise.resolve(),saveQueue=Promise.resolve(),db=null;
 function empty(){return {leads:[],settings:{},settingsByWorkspace:{},events:[],workspaces:[],users:[],sessions:[]}}
 function loadLocal(){if(!fs.existsSync(DATA)){fs.mkdirSync(path.dirname(DATA),{recursive:true});fs.writeFileSync(DATA,JSON.stringify(empty(),null,2))}return JSON.parse(fs.readFileSync(DATA,'utf8'))}
 function saveLocal(x){fs.mkdirSync(path.dirname(DATA),{recursive:true});fs.writeFileSync(DATA,JSON.stringify(x,null,2))}
@@ -17,7 +17,7 @@ async function initPostgres(){
 }
 function init(){ready=initPostgres();return ready.then(()=>{if(!db)db=loadLocal();const required=process.env.NODE_ENV==='production'||process.env.REQUIRE_PERSISTENCE==='true';if(required&&!pool)throw new Error('Persistent PostgreSQL storage is required but DATABASE_URL is not configured');console.log(`Storage ready: ${pool?'postgresql':'local'}`);return db})}
 function get(){if(!db)db=loadLocal();return db}
-function save(x){db=x;saveLocal(x);if(pool)ready=ready.then(()=>pool.query('UPDATE alr_state SET payload=$1,updated_at=now() WHERE id=1',[x]).catch(e=>console.error('PostgreSQL save failed:',e.message)))}
-async function status(){await ready;if(pool){try{await pool.query('SELECT 1');return{type:'postgresql',ok:true}}catch(e){return{type:'postgresql',ok:false,error:e.message}}}return{type:'local',ok:true}}
-async function close(){await ready;if(pool)await pool.end()}
+async function save(x){db=x;saveLocal(x);if(pool){await ready;const snapshot=JSON.stringify(x);const write=saveQueue.catch(()=>{}).then(()=>pool.query('UPDATE alr_state SET payload=$1::jsonb,updated_at=now() WHERE id=1',[snapshot]));saveQueue=write;await write}}
+async function status(){await ready;try{await saveQueue;if(pool){await pool.query('SELECT 1');return{type:'postgresql',ok:true}}return{type:'local',ok:true}}catch(e){return{type:pool?'postgresql':'local',ok:false,error:e.message}}}
+async function close(){await ready;await saveQueue;if(pool)await pool.end()}
 module.exports={init,get,save,close,status}
