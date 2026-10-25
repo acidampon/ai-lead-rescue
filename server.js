@@ -51,7 +51,7 @@ if(req.method==='GET'&&url.pathname==='/api/admin/database-export'){
   const snapshot=await storage.exportDatabaseSnapshot();
   const date=new Date().toISOString().slice(0,10);
   secureHeaders(res);
-  res.writeHead(200,{'Content-Type':'application/json; charset=utf-8','Content-Disposition':`attachment; filename="veridexa-database-backup-${date}.json"`,'Cache-Control':'no-store','Pragma':'no-cache'});
+  res.writeHead(200,{'Content-Type':'application/json; charset=utf-8','Content-Disposition':`attachment; filename="veridexa-logical-snapshot-${date}.json"`,'Cache-Control':'no-store','Pragma':'no-cache'});
   return res.end(JSON.stringify(snapshot));
  }catch(error){console.error('database export failed',error.message);return json(res,503,{error:'Database export failed. Check server logs and database access.'})}
 }
