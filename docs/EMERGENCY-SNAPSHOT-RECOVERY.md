@@ -22,6 +22,10 @@ This is a guarded recovery path for the JSON snapshot produced by `GET /api/admi
    node scripts/restore-alr-state-snapshot.mjs ./veridexa-logical-snapshot-YYYY-MM-DD.json
    ```
 7. The script checks the snapshot format, confirms it contains exactly one `public.alr_state` row, requires an explicit target confirmation, rejects other application tables, and refuses to overwrite any existing row. It uses a transaction and verified TLS.
-8. Confirm the script reports success. Keep the snapshot file and its checksum/metadata in a separate safe location.
+8. Confirm the script reports success. Keep the snapshot file, its SHA-256 checksum shown by the download page, and export metadata in a separate safe location.
+9. Clear connection secrets when finished:
+   ```bash
+   unset DATABASE_URL RESTORE_CONFIRM_TARGET
+   ```
 
 Do not remove the confirmation guard or point this script at production. A successful restore is not a substitute for a native PostgreSQL backup.
