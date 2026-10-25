@@ -21,13 +21,13 @@ button:disabled{opacity:.55;cursor:wait}
 </head>
 <body>
 <main>
-<h1>Database backup download</h1>
-<p>This tool downloads a sensitive snapshot of the AI Lead Rescue / Veridexa PostgreSQL database. Use it only if you are authorized to handle this data.</p>
+<h1>Emergency database snapshot</h1>
+<p>This downloads a sensitive JSON snapshot of tables, rows, and database metadata from the shared PostgreSQL database. It is an emergency data-recovery aid, not a native pg_dump archive and not a guaranteed full schema restore. Use it only if you are authorized to handle this data.</p>
 <p class="note">Your token is sent only in the Authorization header to this same service. It is not put in the URL, saved in browser storage, or sent to third-party scripts.</p>
 <form id="backup-form">
 <label for="backup-token">Temporary backup token</label>
 <input id="backup-token" type="password" required autocomplete="off" autocapitalize="off" spellcheck="false">
-<button id="download-button" type="submit">Download database backup</button>
+<button id="download-button" type="submit">Download emergency snapshot</button>
 </form>
 <p id="status" role="status" aria-live="polite"></p>
 </main>
@@ -46,7 +46,7 @@ form.addEventListener('submit',async event=>{
   const response=await fetch('/api/admin/database-export',{method:'GET',headers:{Authorization:'Bearer '+backupToken},cache:'no-store',credentials:'same-origin'});
   input.value='';
   if(!response.ok){
-   let message='Backup request failed (HTTP '+response.status+').';
+   let message='Snapshot request failed (HTTP '+response.status+').';
    try{const body=await response.json();if(body&&body.error)message=body.error}catch{}
    throw new Error(message);
   }
@@ -59,8 +59,8 @@ form.addEventListener('submit',async event=>{
   const link=document.createElement('a');
   link.href=objectUrl;link.download=filename;document.body.appendChild(link);link.click();link.remove();
   setTimeout(()=>URL.revokeObjectURL(objectUrl),30000);
-  status.textContent='Download started ('+blob.size.toLocaleString()+' bytes). Confirm the file exists, then store a second copy somewhere safe. This page cannot verify your device saved the file.';
- }catch(error){status.textContent='Backup not confirmed: '+(error&&error.message?error.message:'request failed');}
+  status.textContent='Snapshot download started ('+blob.size.toLocaleString()+' bytes). Confirm the file exists, then store a second copy somewhere safe. This page cannot verify your device saved the file.';
+ }catch(error){status.textContent='Snapshot not confirmed: '+(error&&error.message?error.message:'request failed');}
  finally{input.value='';button.disabled=false;}
 });
 </script>
