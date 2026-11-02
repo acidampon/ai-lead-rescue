@@ -3,7 +3,7 @@
 # The existing render.yaml remains unchanged; this file does not deploy anything.
 services:
   - type: web
-    name: ai-lead-rescue
+    name: ai-lead-rescue-recovery
     runtime: node
     plan: free
     region: oregon
