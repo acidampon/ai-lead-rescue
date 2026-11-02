@@ -6,7 +6,9 @@ The current Render deployment is coupled to the expired Render-managed database 
 
 ## Recommended route
 
-Evaluate a free Neon PostgreSQL project first, using its **pooled** connection string for a serverless/short-lived web service. A free Supabase PostgreSQL project is a valid alternative if an eligible free project slot is available. Provider quotas, sleep/compute limits, and current free-tier terms must be checked in the provider dashboard before use; do not assume free tiers are permanent or production-grade.
+Evaluate **Neon Free** first. Its current official free-plan documentation lists 100 projects, 100 CU-hours per project per month, 1 GB storage per project, and 5 GB public transfer per project per month; compute scales to zero after five minutes. Use its pooled PostgreSQL connection string with the standard `pg` driver. These limits are suitable for a small recovery/staging workload, not a guarantee of uninterrupted production. Check the account dashboard before provisioning. A free Supabase PostgreSQL project is an alternative only if an eligible free project slot is available; the user's existing Supabase free projects already have an active-project cap constraint.
+
+**Important hosting caveat:** Render's official free-service documentation says free web services have ephemeral filesystems, spin down after 15 minutes idle, and may be suspended for unusually high outbound traffic such as external database/API traffic. Render also describes free services as unsuitable for production. Therefore this external-DB blueprint is a no-cost recovery/staging route, not a durable production SLA. If Render suspends outbound DB access or the app needs reliable availability, the genuinely robust free option may be to host both the app and database on a provider with a compatible free allowance rather than split the service across Render and an external database.
 
 ## Recovery steps
 
@@ -29,8 +31,9 @@ Before treating old records as unrecoverable, inspect Render's dashboard for any
 
 ## Cost and operational trade-offs
 
-- Render free web services can sleep and are not a high-availability production tier.
-- Free PostgreSQL plans commonly have storage, compute, connection, and inactivity limits.
+- Render free web services can sleep, lose local files, and are explicitly not recommended for production; unusually high outbound database/API traffic can trigger suspension.
+- Neon Free currently lists 100 CU-hours and 1 GB storage per project, with scale-to-zero after five minutes; free PostgreSQL plans commonly have compute, transfer, storage, connection, and inactivity limits.
+- Supabase Free projects pause after one week of inactivity and have a two-active-project limit.
 - A free setup is appropriate for recovery, validation, and early low-volume use, not a guarantee of uninterrupted production service.
 - Keep independent encrypted exports. Test restores into a separate empty database periodically.
 - Do not store credentials or real customer/payment data in the demo snapshot.
