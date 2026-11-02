@@ -1,0 +1,25 @@
+# Alternative Render Blueprint for AI Lead Rescue.
+# Use this only when connecting an independently managed PostgreSQL database.
+# The existing render.yaml remains unchanged; this file does not deploy anything.
+services:
+  - type: web
+    name: ai-lead-rescue
+    runtime: node
+    plan: free
+    region: oregon
+    repo: https://github.com/acidampon/ai-lead-rescue
+    branch: main
+    buildCommand: npm install && npm run check && npm run smoke
+    startCommand: npm start
+    healthCheckPath: /api/ready
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: AUTH_REQUIRED
+        value: "true"
+      - key: REQUIRE_PERSISTENCE
+        value: "true"
+      - key: DATABASE_URL
+        sync: false
+      - key: DATABASE_SSL
+        value: "true"
